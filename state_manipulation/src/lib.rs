@@ -205,7 +205,17 @@ pub fn game_update_and_render(platform: &Platform,
     }
 
     if state.deck.len() > 0 {
-        draw_card_back(platform, 60, 10);
+        if do_card_back_button(platform,
+                               &mut state.ui_context,
+                               60,
+                               10,
+                               left_mouse_pressed,
+                               left_mouse_released,
+                               88) {
+            let card = deal(state);
+
+            state.pile.push(card);
+        }
     }
 
     if let Some(top_card) = state.pile.last() {
@@ -232,6 +242,34 @@ fn draw_card(platform: &Platform, x: i32, y: i32, card: &Card) {
 fn draw_card_back(platform: &Platform, x: i32, y: i32) {
     draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
     draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
+}
+
+fn do_card_back_button(platform: &Platform,
+                       context: &mut UIContext,
+                       x: i32,
+                       y: i32,
+                       left_mouse_pressed: bool,
+                       left_mouse_released: bool,
+                       id: i32)
+                       -> bool {
+    let spec = ButtonSpec {
+        x,
+        y,
+        w: CARD_WIDTH,
+        h: CARD_HEIGHT,
+        text: String::new(),
+        id,
+    };
+
+    let result = do_button(platform,
+                           context,
+                           &spec,
+                           left_mouse_pressed,
+                           left_mouse_released);
+
+    draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
+
+    result
 }
 
 fn cross_mode_event_handling(platform: &Platform, state: &mut State, event: &Event) {
@@ -316,10 +354,16 @@ pub fn inside_rect(point: Point, x: i32, y: i32, w: i32, h: i32) -> bool {
 }
 
 fn print_centered_line(platform: &Platform, x: i32, y: i32, w: i32, h: i32, text: &str) {
+    let char_count = text.chars().count();
+
+    if char_count == 0 {
+        return;
+    }
+
     let x_ = {
         let rect_middle = x + (w / 2);
 
-        rect_middle - (text.chars().count() as f32 / 2.0) as i32
+        rect_middle - (char_count as f32 / 2.0) as i32
     };
 
     let y_ = y + (h / 2);
