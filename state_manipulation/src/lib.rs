@@ -201,8 +201,15 @@ pub fn game_update_and_render(platform: &Platform,
             x += CARD_OFFSET_DELTA;
 
             draw_card(platform, x, y, c3);
-
         }
+    }
+
+    if state.deck.len() > 0 {
+        draw_card_back(platform, 60, 10);
+    }
+
+    if let Some(top_card) = state.pile.last() {
+        draw_card(platform, 40, 10, top_card)
     }
 
     false
@@ -221,6 +228,10 @@ fn draw_card(platform: &Platform, x: i32, y: i32, card: &Card) {
 
     (platform.print_xy)(x + 1, y + 1, &card.value.to_string());
     (platform.print_xy)(x + 1, y + 2, &card.suit.to_string());
+}
+fn draw_card_back(platform: &Platform, x: i32, y: i32) {
+    draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
+    draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
 }
 
 fn cross_mode_event_handling(platform: &Platform, state: &mut State, event: &Event) {
