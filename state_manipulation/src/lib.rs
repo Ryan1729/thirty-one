@@ -2,6 +2,7 @@ extern crate rand;
 extern crate common;
 
 use common::*;
+use common::HandEnum::*;
 
 use rand::{StdRng, SeedableRng, Rng};
 
@@ -35,20 +36,68 @@ pub fn new_state(size: Size) -> State {
     make_state(size, true, rng)
 }
 
+fn deal(state: &mut State) -> Card {
+    deal_parts(&mut state.deck, &mut state.pile, &mut state.rng)
+}
+
+fn deal_parts(deck: &mut Vec<Card>, pile: &mut Vec<Card>, rng: &mut StdRng) -> Card {
+    //reshuffle if we run out of cards.
+    if deck.len() == 0 {
+        debug_assert!(pile.len() != 0, "deck was empty and so was the pile!");
+
+        for card in pile.drain(..) {
+            deck.push(card);
+        }
+
+        rng.shuffle(deck.as_mut_slice());
+    };
+
+    deck.pop()
+        .unwrap_or(Card {
+                       suit: Suit::Spades,
+                       value: Value::Ace,
+                   })
+}
+
 
 fn make_state(size: Size, title_screen: bool, mut rng: StdRng) -> State {
-    let mut row = Vec::new();
+    let mut deck = Card::all_values();
 
-    for _ in 0..size.width {
-        row.push(rng.gen::<u8>());
-    }
+    rng.shuffle(deck.as_mut_slice());
+
+    let mut pile = Vec::new();
+    let player;
+    let mut cpu_players;
+    let pile_card = {
+        let deck_ref = &mut deck;
+        let pile_ref = &mut pile;
+        let rng_ref = &mut rng;
+
+        player = Hand(deal_parts(deck_ref, pile_ref, rng_ref),
+                      deal_parts(deck_ref, pile_ref, rng_ref),
+                      deal_parts(deck_ref, pile_ref, rng_ref));
+
+        let cpu_players_count = rng_ref.gen_range(1, 5);
+        cpu_players = Vec::new();
+
+        for _ in 0..cpu_players_count {
+            cpu_players.push(Hand(deal_parts(deck_ref, pile_ref, rng_ref),
+                                  deal_parts(deck_ref, pile_ref, rng_ref),
+                                  deal_parts(deck_ref, pile_ref, rng_ref)));
+        }
+
+        deal_parts(deck_ref, pile_ref, rng_ref)
+    };
+
+    pile.push(pile_card);
 
     State {
-        rng: rng,
-        title_screen: title_screen,
-        x: 0,
-        row: row,
-        direction: Direction::Right,
+        rng,
+        title_screen,
+        deck,
+        pile,
+        player,
+        cpu_players,
         ui_context: UIContext::new(),
     }
 }
@@ -62,17 +111,21 @@ pub fn update_and_render(platform: &Platform, state: &mut State, events: &mut Ve
             cross_mode_event_handling(platform, state, event);
             match *event {
                 Event::Close |
-                Event::KeyPressed { key: KeyCode::Escape, ctrl: _, shift: _ } => return true,
-                Event::KeyPressed { key: _, ctrl: _, shift: _ } => state.title_screen = false,
+                Event::KeyPressed {
+                    key: KeyCode::Escape,
+                    ctrl: _,
+                    shift: _,
+                } => return true,
+                Event::KeyPressed {
+                    key: _,
+                    ctrl: _,
+                    shift: _,
+                } => state.title_screen = false,
                 _ => (),
             }
         }
 
-
-        state.x += 1;
-        state.x %= 80;
-
-        draw(platform, state);
+        (platform.print_xy)(5, 10, "Click to start.");
 
         false
     } else {
@@ -91,87 +144,97 @@ pub fn game_update_and_render(platform: &Platform,
         cross_mode_event_handling(platform, state, event);
 
         match *event {
-            Event::KeyPressed { key: KeyCode::MouseLeft, ctrl: _, shift: _ } => {
+            Event::KeyPressed {
+                key: KeyCode::MouseLeft,
+                ctrl: _,
+                shift: _,
+            } => {
                 left_mouse_pressed = true;
             }
-            Event::KeyReleased { key: KeyCode::MouseLeft, ctrl: _, shift: _ } => {
+            Event::KeyReleased {
+                key: KeyCode::MouseLeft,
+                ctrl: _,
+                shift: _,
+            } => {
                 left_mouse_released = true;
             }
             Event::Close |
-            Event::KeyPressed { key: KeyCode::Escape, ctrl: _, shift: _ } => return true,
+            Event::KeyPressed {
+                key: KeyCode::Escape,
+                ctrl: _,
+                shift: _,
+            } => return true,
             _ => (),
         }
     }
 
-    match state.direction {
-        Direction::Right => {
-            state.x += 1;
-            state.x %= 80;
-        }
-        Direction::Left => {
-            state.x -= 1;
-            if state.x < 0 {
-                state.x = 79;
-            }
-        }
-    }
-
-    let len = state.row.len();
-    state.row[state.x as usize % len] = state.rng.gen::<u8>();
-
-    for i in 0..len {
-        let c = state.row[i];
-
-        (platform.print_xy)(i as i32, 16, &c.to_string());
-    }
-
     state.ui_context.frame_init();
 
-    let reverse_spec = ButtonSpec {
+    let redeal_spec = ButtonSpec {
         x: 0,
         y: 0,
         w: 11,
         h: 3,
-        text: "Reverse".to_string(),
+        text: "Redeal".to_string(),
         id: 1,
     };
 
     if do_button(platform,
                  &mut state.ui_context,
-                 &reverse_spec,
+                 &redeal_spec,
                  left_mouse_pressed,
                  left_mouse_released) {
-        state.direction = match state.direction {
-            Direction::Right => Direction::Left,
-            Direction::Left => Direction::Right,
-        }
+        *state = make_state((platform.size)(), false, state.rng);
     }
 
-    draw(platform, state);
+    match state.player {
+        Hand(ref c1, ref c2, ref c3) => {
+            let size = (platform.size)();
+
+            let mut x = CARD_OFFSET;
+            let y = size.height - HAND_HEIGHT_OFFSET;
+
+            draw_card(platform, x, y, c1);
+            x += CARD_OFFSET_DELTA;
+
+            draw_card(platform, x, y, c2);
+            x += CARD_OFFSET_DELTA;
+
+            draw_card(platform, x, y, c3);
+
+        }
+    }
 
     false
 }
 
+const CARD_OFFSET: i32 = 5;
+const CARD_OFFSET_DELTA: i32 = 6;
+
+const HAND_HEIGHT_OFFSET: i32 = 8;
+
+const CARD_WIDTH: i32 = 16;
+const CARD_HEIGHT: i32 = 12;
+
+fn draw_card(platform: &Platform, x: i32, y: i32, card: &Card) {
+    draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
+
+    (platform.print_xy)(x + 1, y + 1, &card.value.to_string());
+    (platform.print_xy)(x + 1, y + 2, &card.suit.to_string());
+}
+
 fn cross_mode_event_handling(platform: &Platform, state: &mut State, event: &Event) {
     match *event {
-        Event::KeyPressed { key: KeyCode::R, ctrl: true, shift: _ } => {
+        Event::KeyPressed {
+            key: KeyCode::R,
+            ctrl: true,
+            shift: _,
+        } => {
             println!("reset");
             *state = new_state((platform.size)());
         }
         _ => (),
     }
-}
-
-fn draw(platform: &Platform, state: &State) {
-    //Demo:
-    //1. Run `cargo run` in the folder containing the `state_manipulation` folder
-    //   Leave the windoe open.
-    //2. Change this string and save the file.
-    //3. Run `cargo build` in the `state_manipulation` folder.
-    //4. See that the string has changed in the running  program!
-    (platform.print_xy)(34, 14, "Hello World!");
-
-    (platform.print_xy)(state.x, 15, "‾");
 }
 
 pub struct ButtonSpec {
@@ -261,15 +324,6 @@ fn draw_rect(platform: &Platform, x: i32, y: i32, w: i32, h: i32) {
                    w,
                    h,
                    ["┌", "─", "┐", "│", "│", "└", "─", "┘"]);
-}
-
-fn draw_double_line_rect(platform: &Platform, x: i32, y: i32, w: i32, h: i32) {
-    draw_rect_with(platform,
-                   x,
-                   y,
-                   w,
-                   h,
-                   ["╔", "═", "╗", "║", "║", "╚", "═", "╝"]);
 }
 
 fn draw_rect_with(platform: &Platform, x: i32, y: i32, w: i32, h: i32, edges: [&str; 8]) {

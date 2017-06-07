@@ -3,6 +3,8 @@ extern crate rand;
 use std::fmt;
 
 use rand::StdRng;
+use std::cmp::Ordering;
+use std::cmp::Ordering::{Less, Equal, Greater};
 
 pub struct Platform {
     pub print_xy: fn(i32, i32, &str),
@@ -25,9 +27,10 @@ pub struct Platform {
 pub struct State {
     pub rng: StdRng,
     pub title_screen: bool,
-    pub x: i32,
-    pub row: Vec<u8>,
-    pub direction: Direction,
+    pub deck: Vec<Card>,
+    pub pile: Vec<Card>,
+    pub player: HandEnum,
+    pub cpu_players: Vec<HandEnum>,
     pub ui_context: UIContext,
 }
 
@@ -68,12 +71,183 @@ impl UIContext {
     }
 }
 
-pub enum Direction {
-    Right,
-    Left,
+pub trait AllValues {
+    fn all_values() -> Vec<Self> where Self: std::marker::Sized;
 }
 
+pub enum HandEnum {
+    Hand(Card, Card, Card),
+}
+use HandEnum::*;
 
+#[derive(Eq)]
+pub struct Card {
+    pub suit: Suit,
+    pub value: Value,
+}
+
+impl AllValues for Card {
+    fn all_values() -> Vec<Card> {
+        let mut deck = Vec::new();
+
+        for &suit in Suit::all_values().iter() {
+            for &value in Value::all_values().iter() {
+                deck.push(Card {
+                              suit: suit,
+                              value: value,
+                          });
+            }
+        }
+
+        deck
+    }
+}
+
+impl Ord for Card {
+    fn cmp(&self, other: &Card) -> Ordering {
+        match self.suit.cmp(&other.suit) {
+            Equal => self.value.cmp(&other.value),
+            otherwise => otherwise,
+        }
+    }
+}
+
+impl PartialOrd for Card {
+    fn partial_cmp(&self, other: &Card) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Card {
+    fn eq(&self, other: &Card) -> bool {
+        self.suit == other.suit && self.value == other.value
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Suit {
+    Clubs,
+    Diamonds,
+    Hearts,
+    Spades,
+}
+use Suit::*;
+
+impl fmt::Display for Suit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match *self {
+            Clubs => "♣".to_string(),
+            Diamonds => "♦".to_string(),
+            Hearts => "♥".to_string(),
+            Spades => "♠".to_string(),
+        })
+    }
+}
+
+impl AllValues for Suit {
+    fn all_values() -> Vec<Suit> {
+        vec![Clubs, Diamonds, Hearts, Spades]
+    }
+}
+
+impl Ord for Suit {
+    fn cmp(&self, other: &Suit) -> Ordering {
+        u8::from(*self).cmp(&u8::from(*other))
+    }
+}
+
+impl From<Suit> for u8 {
+    fn from(suit: Suit) -> Self {
+        match suit {
+            Clubs => 1,
+            Diamonds => 2,
+            Hearts => 3,
+            Spades => 4,
+        }
+    }
+}
+
+impl PartialOrd for Suit {
+    fn partial_cmp(&self, other: &Suit) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Value {
+    Ace,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+    Nine,
+    Ten,
+    Jack,
+    Queen,
+    King,
+}
+use Value::*;
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match *self {
+            Ace => "A".to_string(),
+            Two => "2".to_string(),
+            Three => "3".to_string(),
+            Four => "4".to_string(),
+            Five => "5".to_string(),
+            Six => "6".to_string(),
+            Seven => "7".to_string(),
+            Eight => "8".to_string(),
+            Nine => "9".to_string(),
+            Ten => "10".to_string(),
+            Jack => "J".to_string(),
+            Queen => "Q".to_string(),
+            King => "K".to_string(),
+        })
+    }
+}
+
+impl AllValues for Value {
+    fn all_values() -> Vec<Value> {
+        vec![Ace, Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King]
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        u8::from(*self).cmp(&u8::from(*other))
+    }
+}
+
+impl From<Value> for u8 {
+    fn from(value: Value) -> Self {
+        match value {
+            Ace => 14, //Ace high
+            Two => 2,
+            Three => 3,
+            Four => 4,
+            Five => 5,
+            Six => 6,
+            Seven => 7,
+            Eight => 8,
+            Nine => 9,
+            Ten => 10,
+            Jack => 11,
+            Queen => 12,
+            King => 13,
+        }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 
 
