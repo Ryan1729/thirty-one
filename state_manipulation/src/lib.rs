@@ -98,6 +98,7 @@ fn make_state(size: Size, title_screen: bool, mut rng: StdRng) -> State {
         pile,
         player,
         cpu_players,
+        selected_card: None,
         ui_context: UIContext::new(),
     }
 }
@@ -187,20 +188,21 @@ pub fn game_update_and_render(platform: &Platform,
         *state = make_state((platform.size)(), false, state.rng);
     }
 
+    let size = (platform.size)();
+    let hand_height = size.height - HAND_HEIGHT_OFFSET;
+
     match state.player {
         Hand(ref c1, ref c2, ref c3) => {
-            let size = (platform.size)();
 
             let mut x = CARD_OFFSET;
-            let y = size.height - HAND_HEIGHT_OFFSET;
 
-            draw_card(platform, x, y, c1);
+            draw_card(platform, x, hand_height, c1);
             x += CARD_OFFSET_DELTA;
 
-            draw_card(platform, x, y, c2);
+            draw_card(platform, x, hand_height, c2);
             x += CARD_OFFSET_DELTA;
 
-            draw_card(platform, x, y, c3);
+            draw_card(platform, x, hand_height, c3);
         }
     }
 
@@ -218,8 +220,26 @@ pub fn game_update_and_render(platform: &Platform,
         }
     }
 
-    if let Some(top_card) = state.pile.last() {
-        draw_card(platform, 40, 10, top_card)
+
+    if let Some(ref selected_card) = state.selected_card {
+        draw_card(platform, 50, hand_height, selected_card);
+    } else {
+        let selected_pile_top = if let Some(top_card) = state.pile.last() {
+            do_card_button(platform,
+                           &mut state.ui_context,
+                           40,
+                           10,
+                           top_card,
+                           left_mouse_pressed,
+                           left_mouse_released,
+                           100)
+        } else {
+            false
+        };
+
+        if selected_pile_top {
+            state.selected_card = state.pile.pop();
+        }
     }
 
     false
@@ -236,12 +256,41 @@ const CARD_HEIGHT: i32 = 12;
 fn draw_card(platform: &Platform, x: i32, y: i32, card: &Card) {
     draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
 
-    (platform.print_xy)(x + 1, y + 1, &card.value.to_string());
-    (platform.print_xy)(x + 1, y + 2, &card.suit.to_string());
+    draw_card_value(platform, x + 1, y + 1, card);
 }
-fn draw_card_back(platform: &Platform, x: i32, y: i32) {
-    draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
-    draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
+
+fn draw_card_value(platform: &Platform, x: i32, y: i32, card: &Card) {
+    (platform.print_xy)(x, y, &card.value.to_string());
+    (platform.print_xy)(x, y + 1, &card.suit.to_string());
+}
+
+fn do_card_button(platform: &Platform,
+                  context: &mut UIContext,
+                  x: i32,
+                  y: i32,
+                  card: &Card,
+                  left_mouse_pressed: bool,
+                  left_mouse_released: bool,
+                  id: i32)
+                  -> bool {
+    let spec = ButtonSpec {
+        x,
+        y,
+        w: CARD_WIDTH,
+        h: CARD_HEIGHT,
+        text: String::new(),
+        id,
+    };
+
+    let result = do_button(platform,
+                           context,
+                           &spec,
+                           left_mouse_pressed,
+                           left_mouse_released);
+
+    draw_card_value(platform, x + 1, y + 1, card);
+
+    result
 }
 
 fn do_card_back_button(platform: &Platform,

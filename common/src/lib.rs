@@ -31,6 +31,7 @@ pub struct State {
     pub pile: Vec<Card>,
     pub player: HandEnum,
     pub cpu_players: Vec<HandEnum>,
+    pub selected_card: Option<Card>,
     pub ui_context: UIContext,
 }
 
