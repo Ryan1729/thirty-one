@@ -219,12 +219,11 @@ pub fn game_update_and_render(platform: &Platform,
 
         match selection {
             FromHand(index) => {
-                match index {
-                    //TODO
-                    FirstCard => {}
-                    SecondCard => {}
-                    ThirdCard => {}
-                }
+                state
+                    .pile
+                    .push(state
+                              .player
+                              .swap(index, state.selected_card.take().unwrap()))
             }
             SelectedCard => {
                 state.pile.push(state.selected_card.take().unwrap());

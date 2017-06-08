@@ -79,7 +79,35 @@ pub trait AllValues {
 pub enum HandEnum {
     Hand(Card, Card, Card),
 }
+use HandEnum::*;
 
+impl HandEnum {
+    pub fn swap(&mut self, index: HandCard, new_card: Card) -> Card {
+        match self {
+            &mut Hand(ref mut c1, ref mut c2, ref mut c3) => {
+                match index {
+                    FirstCard => {
+                        let result = c1.clone();
+                        *c1 = new_card;
+                        result
+                    }
+                    SecondCard => {
+                        let result = c2.clone();
+                        *c2 = new_card;
+                        result
+                    }
+                    ThirdCard => {
+                        let result = c3.clone();
+                        *c3 = new_card;
+                        result
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
 pub enum HandCard {
     FirstCard,
     SecondCard,
@@ -87,7 +115,7 @@ pub enum HandCard {
 }
 use HandCard::*;
 
-#[derive(Eq)]
+#[derive(Eq, Clone)]
 pub struct Card {
     pub suit: Suit,
     pub value: Value,
