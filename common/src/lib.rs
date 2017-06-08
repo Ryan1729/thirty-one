@@ -79,7 +79,13 @@ pub trait AllValues {
 pub enum HandEnum {
     Hand(Card, Card, Card),
 }
-use HandEnum::*;
+
+pub enum HandCard {
+    FirstCard,
+    SecondCard,
+    ThirdCard,
+}
+use HandCard::*;
 
 #[derive(Eq)]
 pub struct Card {

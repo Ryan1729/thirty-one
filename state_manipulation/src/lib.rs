@@ -3,6 +3,7 @@ extern crate common;
 
 use common::*;
 use common::HandEnum::*;
+use common::HandCard::*;
 
 use rand::{StdRng, SeedableRng, Rng};
 
@@ -196,39 +197,68 @@ pub fn game_update_and_render(platform: &Platform,
 
             let mut x = CARD_OFFSET;
 
-            draw_card(platform, x, hand_height, c1);
-            x += CARD_OFFSET_DELTA;
+            if state.selected_card.is_none() {
+                draw_card(platform, x, hand_height, c1);
+                x += CARD_OFFSET_DELTA;
 
-            draw_card(platform, x, hand_height, c2);
-            x += CARD_OFFSET_DELTA;
+                draw_card(platform, x, hand_height, c2);
+                x += CARD_OFFSET_DELTA;
 
-            draw_card(platform, x, hand_height, c3);
-        }
-    }
-
-    if state.deck.len() > 0 {
-        if do_card_back_button(platform,
-                               &mut state.ui_context,
-                               60,
-                               10,
-                               left_mouse_pressed,
-                               left_mouse_released,
-                               88) {
-            let card = deal(state);
-
-            state.pile.push(card);
+                draw_card(platform, x, hand_height, c3);
+            }
         }
     }
 
 
-    if let Some(ref selected_card) = state.selected_card {
-        draw_card(platform, 50, hand_height, selected_card);
+    if state.selected_card.is_some() {
+        let selection = select_returned_card(platform,
+                                             state,
+                                             hand_height,
+                                             left_mouse_pressed,
+                                             left_mouse_released);
+
+        match selection {
+            FromHand(index) => {
+                match index {
+                    //TODO
+                    FirstCard => {}
+                    SecondCard => {}
+                    ThirdCard => {}
+                }
+            }
+            SelectedCard => {
+                state.pile.push(state.selected_card.take().unwrap());
+            }
+            NoSelection => {}
+        }
+
+        if let Some(top_card) = state.pile.last() {
+            draw_card(platform, PILE_X, PILE_Y, top_card);
+        }
+
+        if state.deck.len() > 0 {
+            draw_card_back(platform, DECK_X, DECK_Y);
+        }
     } else {
+        if state.deck.len() > 0 {
+            if do_card_back_button(platform,
+                                   &mut state.ui_context,
+                                   DECK_X,
+                                   DECK_Y,
+                                   left_mouse_pressed,
+                                   left_mouse_released,
+                                   88) {
+                let card = deal(state);
+
+                state.selected_card = Some(card);
+            }
+        }
+
         let selected_pile_top = if let Some(top_card) = state.pile.last() {
             do_card_button(platform,
                            &mut state.ui_context,
-                           40,
-                           10,
+                           PILE_X,
+                           PILE_Y,
                            top_card,
                            left_mouse_pressed,
                            left_mouse_released,
@@ -245,6 +275,94 @@ pub fn game_update_and_render(platform: &Platform,
     false
 }
 
+enum ReturnSelection {
+    FromHand(HandCard),
+    SelectedCard,
+    NoSelection,
+}
+use ReturnSelection::*;
+
+fn select_returned_card(platform: &Platform,
+                        state: &mut State,
+                        hand_height: i32,
+                        left_mouse_pressed: bool,
+                        left_mouse_released: bool)
+                        -> ReturnSelection {
+
+    let mut id = 110;
+    match state.player {
+        Hand(ref c1, ref c2, ref c3) => {
+
+            let mut x = CARD_OFFSET;
+
+            if do_raised_card_button(platform,
+                                     &mut state.ui_context,
+                                     x,
+                                     hand_height,
+                                     c1,
+                                     left_mouse_pressed,
+                                     left_mouse_released,
+                                     id) {
+                return FromHand(FirstCard);
+            }
+
+            x += CARD_OFFSET_DELTA;
+            id += 1;
+
+            if do_raised_card_button(platform,
+                                     &mut state.ui_context,
+                                     x,
+                                     hand_height,
+                                     c2,
+                                     left_mouse_pressed,
+                                     left_mouse_released,
+                                     id) {
+                return FromHand(SecondCard);
+            }
+
+
+            x += CARD_OFFSET_DELTA;
+            id += 1;
+
+            if do_raised_card_button(platform,
+                                     &mut state.ui_context,
+                                     x,
+                                     hand_height,
+                                     c3,
+                                     left_mouse_pressed,
+                                     left_mouse_released,
+                                     id) {
+                return FromHand(ThirdCard);
+            }
+        }
+    }
+
+    id += 1;
+
+    if let Some(ref selected_card) = state.selected_card {
+        if do_card_button(platform,
+                          &mut state.ui_context,
+                          50,
+                          hand_height,
+                          selected_card,
+                          left_mouse_pressed,
+                          left_mouse_released,
+                          id) {
+            return SelectedCard;
+        }
+
+    }
+
+    NoSelection
+}
+
+
+const PILE_X: i32 = 40;
+const DECK_X: i32 = PILE_X + CARD_WIDTH + 4;
+
+const PILE_Y: i32 = 10;
+const DECK_Y: i32 = PILE_Y;
+
 const CARD_OFFSET: i32 = 5;
 const CARD_OFFSET_DELTA: i32 = 6;
 
@@ -258,10 +376,78 @@ fn draw_card(platform: &Platform, x: i32, y: i32, card: &Card) {
 
     draw_card_value(platform, x + 1, y + 1, card);
 }
+fn draw_card_back(platform: &Platform, x: i32, y: i32) {
+    draw_rect(platform, x, y, CARD_WIDTH, CARD_HEIGHT);
+
+    draw_card_back_design(platform, x, y);
+}
 
 fn draw_card_value(platform: &Platform, x: i32, y: i32, card: &Card) {
     (platform.print_xy)(x, y, &card.value.to_string());
     (platform.print_xy)(x, y + 1, &card.suit.to_string());
+}
+fn draw_card_back_design(platform: &Platform, x: i32, y: i32) {
+    draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
+}
+
+const CARD_RAISE_OFFSET: i32 = CARD_HEIGHT / 2;
+
+//TODO animation. Maybe put a counter on the UIContext?
+fn do_raised_card_button(platform: &Platform,
+                         context: &mut UIContext,
+                         x: i32,
+                         y: i32,
+                         card: &Card,
+                         left_mouse_pressed: bool,
+                         left_mouse_released: bool,
+                         id: UiId)
+                         -> bool {
+    let mut result = false;
+
+    let mouse_pos = (platform.mouse_position)();
+    let active = context.active == id;
+    let hot = context.hot == id;
+    let raised_y = y - CARD_RAISE_OFFSET;
+    let inside = inside_rect(mouse_pos, x, y, CARD_WIDTH, CARD_HEIGHT) ||
+                 (hot && inside_rect(mouse_pos, x, raised_y, CARD_WIDTH, CARD_HEIGHT));
+
+    if active {
+        if left_mouse_released {
+            result = hot && inside;
+
+            context.set_not_active();
+        }
+    } else if hot {
+        if left_mouse_pressed {
+            context.set_active(id);
+        }
+    }
+
+    if inside {
+        context.set_next_hot(id);
+    }
+
+    if active && (platform.key_pressed)(KeyCode::MouseLeft) {
+        draw_rect_with(platform,
+                       x,
+                       raised_y,
+                       CARD_WIDTH,
+                       CARD_HEIGHT,
+                       ["╔", "═", "╕", "║", "│", "╙", "─", "┘"]);
+        draw_card_value(platform, x + 1, raised_y + 1, card);
+    } else if context.hot == id {
+        draw_rect_with(platform,
+                       x,
+                       raised_y,
+                       CARD_WIDTH,
+                       CARD_HEIGHT,
+                       ["┌", "─", "╖", "│", "║", "╘", "═", "╝"]);
+        draw_card_value(platform, x + 1, raised_y + 1, card);
+    } else {
+        draw_card(platform, x, y, card);
+    }
+
+    return result;
 }
 
 fn do_card_button(platform: &Platform,
@@ -271,7 +457,7 @@ fn do_card_button(platform: &Platform,
                   card: &Card,
                   left_mouse_pressed: bool,
                   left_mouse_released: bool,
-                  id: i32)
+                  id: UiId)
                   -> bool {
     let spec = ButtonSpec {
         x,
@@ -299,7 +485,7 @@ fn do_card_back_button(platform: &Platform,
                        y: i32,
                        left_mouse_pressed: bool,
                        left_mouse_released: bool,
-                       id: i32)
+                       id: UiId)
                        -> bool {
     let spec = ButtonSpec {
         x,
@@ -316,7 +502,7 @@ fn do_card_back_button(platform: &Platform,
                            left_mouse_pressed,
                            left_mouse_released);
 
-    draw_rect(platform, x + 2, y + 1, CARD_WIDTH - 4, CARD_HEIGHT - 2);
+    draw_card_back_design(platform, x, y);
 
     result
 }
@@ -341,7 +527,7 @@ pub struct ButtonSpec {
     pub w: i32,
     pub h: i32,
     pub text: String,
-    pub id: i32,
+    pub id: UiId,
 }
 
 //calling this once will swallow multiple clicks on the button. We could either
