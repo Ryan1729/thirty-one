@@ -108,6 +108,15 @@ pub enum HandEnum {
 }
 use HandEnum::*;
 
+impl fmt::Display for HandEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+        write!(f, "{}", match *self {
+            Hand(ref c1, ref c2, ref c3) => format!("a {}, a {} and a {}", c1, c2, c3),
+        })
+    }
+}
+
 impl HandEnum {
     pub fn swap(&mut self, index: HandCard, new_card: Card) -> Card {
         match self {

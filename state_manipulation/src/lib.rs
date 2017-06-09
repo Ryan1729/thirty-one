@@ -296,11 +296,21 @@ pub fn game_update_and_render(platform: &Platform,
             }
         }
         Resolution(possible_winner) => {
-            let winner = possible_winner.unwrap_or_else(||
-                //TODO find highest scoring participant
-                {Player});
+            let mut y = 2;
 
-            (platform.print_xy)(10, 20, s!("{} won!", winner))
+            (platform.print_xy)(20, y, s!("You have {}", state.player));
+
+            y += 2;
+
+            for (i, cpu_hand) in state.cpu_players.iter().enumerate() {
+                (platform.print_xy)(20, y, s!("{} has {}", Cpu(i), cpu_hand));
+
+                y += 2;
+            }
+
+            let winner = possible_winner.unwrap_or_else(|| Player);
+
+            (platform.print_xy)(10, 20, s!("{} won!", winner));
         }
     }
 
@@ -341,6 +351,8 @@ fn cpu_turns(state: &mut State) -> Option<Participant> {
 
 fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
     if let Some(cpu_hand) = state.cpu_players.get_mut(cpu_index) {
+
+
 
 
         let pile_card_is_worth_taking = state
