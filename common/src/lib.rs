@@ -135,44 +135,7 @@ impl HandEnum {
 
     pub fn score(&self) -> Score {
         match self {
-            &Hand(ref c1, ref c2, ref c3) => {
-                if c1.value == c2.value && c2.value == c3.value {
-                    ThirtyAndAHalf
-                } else {
-                    let mut clubs = Vec::new();
-                    let mut diamonds = Vec::new();
-                    let mut hearts = Vec::new();
-                    let mut spades = Vec::new();
-
-                    match c1.suit {
-                        Clubs => clubs.push(c1.value),
-                        Diamonds => diamonds.push(c1.value),
-                        Hearts => hearts.push(c1.value),
-                        Spades => spades.push(c1.value),
-                    }
-                    match c2.suit {
-                        Clubs => clubs.push(c2.value),
-                        Diamonds => diamonds.push(c2.value),
-                        Hearts => hearts.push(c2.value),
-                        Spades => spades.push(c2.value),
-                    }
-                    match c3.suit {
-                        Clubs => clubs.push(c3.value),
-                        Diamonds => diamonds.push(c3.value),
-                        Hearts => hearts.push(c3.value),
-                        Spades => spades.push(c3.value),
-                    }
-
-                    let int_resuilt = [clubs.iter().fold(0, |acc, v| acc + v.score()),
-                                       diamonds.iter().fold(0, |acc, v| acc + v.score()),
-                                       hearts.iter().fold(0, |acc, v| acc + v.score()),
-                                       spades.iter().fold(0, |acc, v| acc + v.score())]
-                            .iter()
-                            .fold(0, |acc, x| std::cmp::max(acc, *x));
-
-                    Simple(int_resuilt)
-                }
-            }
+            &Hand(ref c1, ref c2, ref c3) => score_cards(c1, c2, c3),
         }
     }
     pub fn is_31(&self) -> bool {
@@ -180,6 +143,45 @@ impl HandEnum {
             Simple(x) => x >= 31,
             _ => false,
         }
+    }
+}
+
+pub fn score_cards(c1: &Card, c2: &Card, c3: &Card) -> Score {
+    if c1.value == c2.value && c2.value == c3.value {
+        ThirtyAndAHalf
+    } else {
+        let mut clubs = Vec::new();
+        let mut diamonds = Vec::new();
+        let mut hearts = Vec::new();
+        let mut spades = Vec::new();
+
+        match c1.suit {
+            Clubs => clubs.push(c1.value),
+            Diamonds => diamonds.push(c1.value),
+            Hearts => hearts.push(c1.value),
+            Spades => spades.push(c1.value),
+        }
+        match c2.suit {
+            Clubs => clubs.push(c2.value),
+            Diamonds => diamonds.push(c2.value),
+            Hearts => hearts.push(c2.value),
+            Spades => spades.push(c2.value),
+        }
+        match c3.suit {
+            Clubs => clubs.push(c3.value),
+            Diamonds => diamonds.push(c3.value),
+            Hearts => hearts.push(c3.value),
+            Spades => spades.push(c3.value),
+        }
+
+        let int_resuilt = [clubs.iter().fold(0, |acc, v| acc + v.score()),
+                           diamonds.iter().fold(0, |acc, v| acc + v.score()),
+                           hearts.iter().fold(0, |acc, v| acc + v.score()),
+                           spades.iter().fold(0, |acc, v| acc + v.score())]
+                .iter()
+                .fold(0, |acc, x| std::cmp::max(acc, *x));
+
+        Simple(int_resuilt)
     }
 }
 

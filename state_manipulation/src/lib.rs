@@ -343,7 +343,16 @@ fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
     if let Some(cpu_hand) = state.cpu_players.get_mut(cpu_index) {
 
 
-        let card = if state.pile.len() > 0 && state.rng.gen::<bool>() {
+        let pile_card_is_worth_taking = state
+            .pile
+            .last()
+            .map(|card| match cpu_select_returned_card(cpu_hand, card) {
+                     SelectedCard => false,
+                     _ => true,
+                 })
+            .unwrap_or(false);
+
+        let card = if pile_card_is_worth_taking {
             let card = state.pile.pop().unwrap();
 
             state.summary += s!("Cpu {} picked up the {} off the pile\n", cpu_index, card);
@@ -357,15 +366,7 @@ fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
             card
         };
 
-        //TODO is there ever a time you woul want to put the card
-        // on the top of the pile back? Wouldn't you just knock?
-
-        let choice = match state.rng.gen_range(0, 4) {
-            0 => FromHand(FirstCard),
-            1 => FromHand(SecondCard),
-            2 => FromHand(ThirdCard),
-            _ => SelectedCard,
-        };
+        let choice = cpu_select_returned_card(&cpu_hand, &card);
 
         let returned_card = match choice {
             FromHand(card_index) => cpu_hand.swap(card_index, card),
@@ -382,7 +383,35 @@ fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
     }
 
     None
+}
 
+fn cpu_select_returned_card(hand: &HandEnum, card: &Card) -> ReturnSelection {
+    match hand {
+        &Hand(ref c1, ref c2, ref c3) => {
+
+            let keep = score_cards(c1, c2, c3);
+            let first = score_cards(card, c2, c3);
+            let second = score_cards(c1, card, c3);
+            let third = score_cards(c1, c2, card);
+
+            if let Some(max) = [&keep, &first, &second, &third]
+                   .iter()
+                   .max()
+                   .map(|&r| r.clone()) {
+                if max == keep {
+                    SelectedCard
+                } else if max == first {
+                    FromHand(ThirdCard)
+                } else if max == second {
+                    FromHand(SecondCard)
+                } else {
+                    FromHand(FirstCard)
+                }
+            } else {
+                FromHand(FirstCard)
+            }
+        }
+    }
 
 }
 
