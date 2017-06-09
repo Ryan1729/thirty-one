@@ -41,7 +41,25 @@ pub enum Turn {
     PlayerTurn,
     PlayerSelected(Card),
     CpuTurn,
-    CpuSummary,
+    CpuSummary(Option<Participant>),
+    Resolution(Option<Participant>),
+}
+
+#[derive(Clone)]
+pub enum Participant {
+    Player,
+    Cpu(usize),
+}
+use Participant::*;
+
+impl fmt::Display for Participant {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+        write!(f, "{}", match *self {
+            Player => "You".to_string(),
+            Cpu(i) => format!("Cpu {}", i),
+        })
+    }
 }
 
 pub type UiId = i32;
@@ -113,6 +131,79 @@ impl HandEnum {
                 }
             }
         }
+    }
+
+    pub fn score(&self) -> Score {
+        match self {
+            &Hand(ref c1, ref c2, ref c3) => {
+                if c1.value == c2.value && c2.value == c3.value {
+                    ThirtyAndAHalf
+                } else {
+                    let mut clubs = Vec::new();
+                    let mut diamonds = Vec::new();
+                    let mut hearts = Vec::new();
+                    let mut spades = Vec::new();
+
+                    match c1.suit {
+                        Clubs => clubs.push(c1.value),
+                        Diamonds => diamonds.push(c1.value),
+                        Hearts => hearts.push(c1.value),
+                        Spades => spades.push(c1.value),
+                    }
+                    match c2.suit {
+                        Clubs => clubs.push(c2.value),
+                        Diamonds => diamonds.push(c2.value),
+                        Hearts => hearts.push(c2.value),
+                        Spades => spades.push(c2.value),
+                    }
+                    match c3.suit {
+                        Clubs => clubs.push(c3.value),
+                        Diamonds => diamonds.push(c3.value),
+                        Hearts => hearts.push(c3.value),
+                        Spades => spades.push(c3.value),
+                    }
+
+                    let int_resuilt = [clubs.iter().fold(0, |acc, v| acc + v.score()),
+                                       diamonds.iter().fold(0, |acc, v| acc + v.score()),
+                                       hearts.iter().fold(0, |acc, v| acc + v.score()),
+                                       spades.iter().fold(0, |acc, v| acc + v.score())]
+                            .iter()
+                            .fold(0, |acc, x| std::cmp::max(acc, *x));
+
+                    Simple(int_resuilt)
+                }
+            }
+        }
+    }
+    pub fn is_31(&self) -> bool {
+        match self.score() {
+            Simple(x) => x >= 31,
+            _ => false,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone)]
+pub enum Score {
+    ThirtyAndAHalf,
+    Simple(u8),
+}
+use Score::*;
+
+impl Ord for Score {
+    fn cmp(&self, other: &Score) -> Ordering {
+        match (self, other) {
+            (&ThirtyAndAHalf, &ThirtyAndAHalf) => Equal,
+            (&ThirtyAndAHalf, &Simple(x)) => if x > 30 { Less } else { Greater },
+            (&Simple(x), &ThirtyAndAHalf) => if x > 30 { Greater } else { Less },
+            (&Simple(x1), &Simple(x2)) => x1.cmp(&x2),
+        }
+    }
+}
+
+impl PartialOrd for Score {
+    fn partial_cmp(&self, other: &Score) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -296,6 +387,26 @@ impl From<Value> for u8 {
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl Value {
+    fn score(&self) -> u8 {
+        match *self {
+            Ace => 11, //Ace high
+            Two => 2,
+            Three => 3,
+            Four => 4,
+            Five => 5,
+            Six => 6,
+            Seven => 7,
+            Eight => 8,
+            Nine => 9,
+            Ten => 10,
+            Jack => 10,
+            Queen => 10,
+            King => 10,
+        }
     }
 }
 

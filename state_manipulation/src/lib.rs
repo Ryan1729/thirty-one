@@ -5,6 +5,7 @@ use common::*;
 use common::HandEnum::*;
 use common::HandCard::*;
 use common::Turn::*;
+use common::Participant::*;
 
 use rand::{StdRng, SeedableRng, Rng};
 
@@ -246,7 +247,11 @@ pub fn game_update_and_render(platform: &Platform,
             match selection {
                 Some(FromHand(index)) => {
                     state.pile.push(state.player.swap(index, selected_card));
-                    state.turn = CpuTurn;
+                    state.turn = if state.player.is_31() {
+                        Resolution(Some(Player))
+                    } else {
+                        CpuTurn
+                    };
                 }
                 Some(SelectedCard) => {
                     state.pile.push(selected_card);
@@ -264,15 +269,9 @@ pub fn game_update_and_render(platform: &Platform,
             }
         }
         CpuTurn => {
-            state.summary.clear();
-
-            for i in 0..state.cpu_players.len() {
-                take_cpu_turn(state, i);
-            }
-
-            state.turn = CpuSummary;
+            state.turn = CpuSummary(cpu_turns(state));
         }
-        CpuSummary => {
+        CpuSummary(possible_winner) => {
             (platform.print_xy)(12, 2, &state.summary);
 
             let ok_spec = ButtonSpec {
@@ -289,8 +288,19 @@ pub fn game_update_and_render(platform: &Platform,
                          &ok_spec,
                          left_mouse_pressed,
                          left_mouse_released) {
-                state.turn = PlayerTurn;
+                state.turn = if possible_winner.is_some() {
+                    Resolution(possible_winner)
+                } else {
+                    PlayerTurn
+                };
             }
+        }
+        Resolution(possible_winner) => {
+            let winner = possible_winner.unwrap_or_else(||
+                //TODO find highest scoring participant
+                {Player});
+
+            (platform.print_xy)(10, 20, s!("{} won!", winner))
         }
     }
 
@@ -315,7 +325,21 @@ pub fn game_update_and_render(platform: &Platform,
     false
 }
 
-fn take_cpu_turn(state: &mut State, cpu_index: usize) {
+fn cpu_turns(state: &mut State) -> Option<Participant> {
+    state.summary.clear();
+
+    for i in 0..state.cpu_players.len() {
+        let possible_winner = take_cpu_turn(state, i);
+
+        if possible_winner.is_some() {
+            return possible_winner;
+        }
+    }
+
+    None
+}
+
+fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
     if let Some(cpu_hand) = state.cpu_players.get_mut(cpu_index) {
 
 
@@ -351,7 +375,15 @@ fn take_cpu_turn(state: &mut State, cpu_index: usize) {
         state.summary += s!("and put a {} back on the pile.\n\n", returned_card);
 
         state.pile.push(returned_card);
+
+        if cpu_hand.is_31() {
+            return Some(Cpu(cpu_index));
+        }
     }
+
+    None
+
+
 }
 
 enum ReturnSelection {
