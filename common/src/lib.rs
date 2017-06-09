@@ -31,8 +31,17 @@ pub struct State {
     pub pile: Vec<Card>,
     pub player: HandEnum,
     pub cpu_players: Vec<HandEnum>,
-    pub selected_card: Option<Card>,
+    pub turn: Turn,
+    pub summary: String,
     pub ui_context: UIContext,
+}
+
+#[derive(Clone)]
+pub enum Turn {
+    PlayerTurn,
+    PlayerSelected(Card),
+    CpuTurn,
+    CpuSummary,
 }
 
 pub type UiId = i32;

@@ -4,6 +4,7 @@ extern crate common;
 use common::*;
 use common::HandEnum::*;
 use common::HandCard::*;
+use common::Turn::*;
 
 use rand::{StdRng, SeedableRng, Rng};
 
@@ -99,7 +100,8 @@ fn make_state(size: Size, title_screen: bool, mut rng: StdRng) -> State {
         pile,
         player,
         cpu_players,
-        selected_card: None,
+        turn: PlayerTurn,
+        summary: String::new(),
         ui_context: UIContext::new(),
     }
 }
@@ -192,84 +194,90 @@ pub fn game_update_and_render(platform: &Platform,
     let size = (platform.size)();
     let hand_height = size.height - HAND_HEIGHT_OFFSET;
 
-    match state.player {
-        Hand(ref c1, ref c2, ref c3) => {
+    match state.turn.clone() {
+        PlayerTurn => {
+            match state.player {
+                Hand(ref c1, ref c2, ref c3) => {
 
-            let mut x = CARD_OFFSET;
+                    let mut x = CARD_OFFSET;
 
-            if state.selected_card.is_none() {
-                draw_card(platform, x, hand_height, c1);
-                x += CARD_OFFSET_DELTA;
+                    draw_card(platform, x, hand_height, c1);
+                    x += CARD_OFFSET_DELTA;
 
-                draw_card(platform, x, hand_height, c2);
-                x += CARD_OFFSET_DELTA;
+                    draw_card(platform, x, hand_height, c2);
+                    x += CARD_OFFSET_DELTA;
 
-                draw_card(platform, x, hand_height, c3);
+                    draw_card(platform, x, hand_height, c3);
+
+                }
             }
+
+            if state.deck.len() > 0 {
+                if do_card_back_button(platform,
+                                       &mut state.ui_context,
+                                       DECK_X,
+                                       DECK_Y,
+                                       left_mouse_pressed,
+                                       left_mouse_released,
+                                       88) {
+                    let card = deal(state);
+                    state.turn = PlayerSelected(card);
+                }
+            }
+
+            let selected_top_card = if let Some(top_card) = state.pile.last() {
+                do_card_button(platform,
+                               &mut state.ui_context,
+                               PILE_X,
+                               PILE_Y,
+                               top_card,
+                               left_mouse_pressed,
+                               left_mouse_released,
+                               100)
+            } else {
+                false
+            };
+
+            if selected_top_card {
+                state.turn = PlayerSelected(state.pile.pop().unwrap());
+            }
+        }
+        PlayerSelected(selected_card) => {
+            let selection = select_returned_card(platform,
+                                                 state,
+                                                 &selected_card,
+                                                 hand_height,
+                                                 left_mouse_pressed,
+                                                 left_mouse_released);
+
+            match selection {
+                FromHand(index) => {
+                    state.pile.push(state.player.swap(index, selected_card));
+                    state.turn = CpuTurn;
+                }
+                SelectedCard => {
+                    state.pile.push(selected_card);
+                    state.turn = CpuTurn;
+                }
+                NoSelection => {}
+            }
+
+            if let Some(top_card) = state.pile.last() {
+                draw_card(platform, PILE_X, PILE_Y, top_card);
+            }
+
+            if state.deck.len() > 0 {
+                draw_card_back(platform, DECK_X, DECK_Y);
+            }
+        }
+        CpuTurn => {
+            state.turn = CpuSummary;
+        }
+        CpuSummary => {
+            state.turn = PlayerTurn;
         }
     }
 
-
-    if state.selected_card.is_some() {
-        let selection = select_returned_card(platform,
-                                             state,
-                                             hand_height,
-                                             left_mouse_pressed,
-                                             left_mouse_released);
-
-        match selection {
-            FromHand(index) => {
-                state
-                    .pile
-                    .push(state
-                              .player
-                              .swap(index, state.selected_card.take().unwrap()))
-            }
-            SelectedCard => {
-                state.pile.push(state.selected_card.take().unwrap());
-            }
-            NoSelection => {}
-        }
-
-        if let Some(top_card) = state.pile.last() {
-            draw_card(platform, PILE_X, PILE_Y, top_card);
-        }
-
-        if state.deck.len() > 0 {
-            draw_card_back(platform, DECK_X, DECK_Y);
-        }
-    } else {
-        if state.deck.len() > 0 {
-            if do_card_back_button(platform,
-                                   &mut state.ui_context,
-                                   DECK_X,
-                                   DECK_Y,
-                                   left_mouse_pressed,
-                                   left_mouse_released,
-                                   88) {
-                let card = deal(state);
-
-                state.selected_card = Some(card);
-            }
-        }
-
-        let selected_pile_top = if let Some(top_card) = state.pile.last() {
-            do_card_button(platform,
-                           &mut state.ui_context,
-                           PILE_X,
-                           PILE_Y,
-                           top_card,
-                           left_mouse_pressed,
-                           left_mouse_released,
-                           100)
-        } else {
-            false
-        };
-
-        if selected_pile_top {
-            state.selected_card = state.pile.pop();
-        }
-    }
 
     false
 }
@@ -283,6 +291,7 @@ use ReturnSelection::*;
 
 fn select_returned_card(platform: &Platform,
                         state: &mut State,
+                        selected_card: &Card,
                         hand_height: i32,
                         left_mouse_pressed: bool,
                         left_mouse_released: bool)
@@ -338,21 +347,18 @@ fn select_returned_card(platform: &Platform,
 
     id += 1;
 
-    if let Some(ref selected_card) = state.selected_card {
-        if do_card_button(platform,
-                          &mut state.ui_context,
-                          50,
-                          hand_height,
-                          selected_card,
-                          left_mouse_pressed,
-                          left_mouse_released,
-                          id) {
-            return SelectedCard;
-        }
-
+    if do_card_button(platform,
+                      &mut state.ui_context,
+                      50,
+                      hand_height,
+                      selected_card,
+                      left_mouse_pressed,
+                      left_mouse_released,
+                      id) {
+        SelectedCard
+    } else {
+        NoSelection
     }
-
-    NoSelection
 }
 
 
