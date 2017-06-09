@@ -7,6 +7,8 @@ use common::HandCard::*;
 use common::Turn::*;
 use common::Participant::*;
 
+use std::collections::HashMap;
+
 use rand::{StdRng, SeedableRng, Rng};
 
 macro_rules! s {
@@ -308,9 +310,35 @@ pub fn game_update_and_render(platform: &Platform,
                 y += 2;
             }
 
-            let winner = possible_winner.unwrap_or_else(|| Player);
+            let winners = possible_winner
+                .map(|v| vec![v])
+                .unwrap_or_else(|| {
+                    let mut who_scored = HashMap::new();
+                    {
+                        let player_score = state.player.score();
+                        let e = who_scored.entry(player_score).or_insert(Vec::new());
+                        e.push(Player);
+                    }
 
-            (platform.print_xy)(10, 20, s!("{} won!", winner));
+                    for i in 0..state.cpu_players.len() {
+                        let cpu_score = state.cpu_players[i].score();
+                        let e = who_scored.entry(cpu_score).or_insert(Vec::new());
+                        e.push(Cpu(i));
+                    }
+
+                    let winner_key = {
+                        who_scored.keys().max().unwrap().clone()
+                    };
+
+                    who_scored.remove(&winner_key).unwrap()
+                });
+
+            let mut winner_y = 20 - (winners.len() - 1) as i32;
+            for winner in winners.iter() {
+                (platform.print_xy)(10, winner_y, s!("{} won!", winner));
+                winner_y += 1;
+            }
+
         }
     }
 

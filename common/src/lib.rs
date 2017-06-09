@@ -194,7 +194,7 @@ pub fn score_cards(c1: &Card, c2: &Card, c3: &Card) -> Score {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub enum Score {
     ThirtyAndAHalf,
     Simple(u8),
