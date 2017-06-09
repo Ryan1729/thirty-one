@@ -8,6 +8,12 @@ use common::Turn::*;
 
 use rand::{StdRng, SeedableRng, Rng};
 
+macro_rules! s {
+    ($($expr: expr),*) => {
+        &format!($($expr,)*)
+    }
+}
+
 //NOTE(Ryan1729): debug_assertions only appears to work correctly when the
 //crate is not a dylib. Assuming you make this crate *not* a dylib on release,
 //these configs should work
@@ -194,24 +200,10 @@ pub fn game_update_and_render(platform: &Platform,
     let size = (platform.size)();
     let hand_height = size.height - HAND_HEIGHT_OFFSET;
 
+    let mut should_draw_hand = true;
+
     match state.turn.clone() {
         PlayerTurn => {
-            match state.player {
-                Hand(ref c1, ref c2, ref c3) => {
-
-                    let mut x = CARD_OFFSET;
-
-                    draw_card(platform, x, hand_height, c1);
-                    x += CARD_OFFSET_DELTA;
-
-                    draw_card(platform, x, hand_height, c2);
-                    x += CARD_OFFSET_DELTA;
-
-                    draw_card(platform, x, hand_height, c3);
-
-                }
-            }
-
             if state.deck.len() > 0 {
                 if do_card_back_button(platform,
                                        &mut state.ui_context,
@@ -249,17 +241,18 @@ pub fn game_update_and_render(platform: &Platform,
                                                  hand_height,
                                                  left_mouse_pressed,
                                                  left_mouse_released);
+            should_draw_hand = false;
 
             match selection {
-                FromHand(index) => {
+                Some(FromHand(index)) => {
                     state.pile.push(state.player.swap(index, selected_card));
                     state.turn = CpuTurn;
                 }
-                SelectedCard => {
+                Some(SelectedCard) => {
                     state.pile.push(selected_card);
                     state.turn = CpuTurn;
                 }
-                NoSelection => {}
+                None => {}
             }
 
             if let Some(top_card) = state.pile.last() {
@@ -271,21 +264,99 @@ pub fn game_update_and_render(platform: &Platform,
             }
         }
         CpuTurn => {
+            state.summary.clear();
+
+            for i in 0..state.cpu_players.len() {
+                take_cpu_turn(state, i);
+            }
+
             state.turn = CpuSummary;
         }
         CpuSummary => {
-            state.turn = PlayerTurn;
+            (platform.print_xy)(12, 2, &state.summary);
+
+            let ok_spec = ButtonSpec {
+                x: 30,
+                y: 18,
+                w: 11,
+                h: 3,
+                text: "Okay".to_string(),
+                id: 4,
+            };
+
+            if do_button(platform,
+                         &mut state.ui_context,
+                         &ok_spec,
+                         left_mouse_pressed,
+                         left_mouse_released) {
+                state.turn = PlayerTurn;
+            }
         }
     }
 
+    if should_draw_hand {
+        match state.player {
+            Hand(ref c1, ref c2, ref c3) => {
+
+                let mut x = CARD_OFFSET;
+
+                draw_card(platform, x, hand_height, c1);
+                x += CARD_OFFSET_DELTA;
+
+                draw_card(platform, x, hand_height, c2);
+                x += CARD_OFFSET_DELTA;
+
+                draw_card(platform, x, hand_height, c3);
+
+            }
+        }
+    }
 
     false
+}
+
+fn take_cpu_turn(state: &mut State, cpu_index: usize) {
+    if let Some(cpu_hand) = state.cpu_players.get_mut(cpu_index) {
+
+
+        let card = if state.pile.len() > 0 && state.rng.gen::<bool>() {
+            let card = state.pile.pop().unwrap();
+
+            state.summary += s!("Cpu {} picked up the {} off the pile\n", cpu_index, card);
+
+            card
+        } else {
+            let card = deal_parts(&mut state.deck, &mut state.pile, &mut state.rng);
+
+            state.summary += s!("Cpu {} drew a card ", cpu_index);
+
+            card
+        };
+
+        //TODO is there ever a time you woul want to put the card
+        // on the top of the pile back? Wouldn't you just knock?
+
+        let choice = match state.rng.gen_range(0, 4) {
+            0 => FromHand(FirstCard),
+            1 => FromHand(SecondCard),
+            2 => FromHand(ThirdCard),
+            _ => SelectedCard,
+        };
+
+        let returned_card = match choice {
+            FromHand(card_index) => cpu_hand.swap(card_index, card),
+            SelectedCard => card,
+        };
+
+        state.summary += s!("and put a {} back on the pile.\n\n", returned_card);
+
+        state.pile.push(returned_card);
+    }
 }
 
 enum ReturnSelection {
     FromHand(HandCard),
     SelectedCard,
-    NoSelection,
 }
 use ReturnSelection::*;
 
@@ -295,7 +366,7 @@ fn select_returned_card(platform: &Platform,
                         hand_height: i32,
                         left_mouse_pressed: bool,
                         left_mouse_released: bool)
-                        -> ReturnSelection {
+                        -> Option<ReturnSelection> {
 
     let mut id = 110;
     match state.player {
@@ -311,7 +382,7 @@ fn select_returned_card(platform: &Platform,
                                      left_mouse_pressed,
                                      left_mouse_released,
                                      id) {
-                return FromHand(FirstCard);
+                return Some(FromHand(FirstCard));
             }
 
             x += CARD_OFFSET_DELTA;
@@ -325,7 +396,7 @@ fn select_returned_card(platform: &Platform,
                                      left_mouse_pressed,
                                      left_mouse_released,
                                      id) {
-                return FromHand(SecondCard);
+                return Some(FromHand(SecondCard));
             }
 
 
@@ -340,7 +411,7 @@ fn select_returned_card(platform: &Platform,
                                      left_mouse_pressed,
                                      left_mouse_released,
                                      id) {
-                return FromHand(ThirdCard);
+                return Some(FromHand(ThirdCard));
             }
         }
     }
@@ -355,9 +426,9 @@ fn select_returned_card(platform: &Platform,
                       left_mouse_pressed,
                       left_mouse_released,
                       id) {
-        SelectedCard
+        Some(SelectedCard)
     } else {
-        NoSelection
+        None
     }
 }
 
