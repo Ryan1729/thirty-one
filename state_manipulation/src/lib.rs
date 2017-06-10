@@ -6,6 +6,9 @@ use common::HandEnum::*;
 use common::HandCard::*;
 use common::Turn::*;
 use common::Participant::*;
+use common::Score::*;
+use common::KnockerOrWinner::*;
+
 
 use std::collections::HashMap;
 
@@ -109,7 +112,7 @@ fn make_state(size: Size, title_screen: bool, mut rng: StdRng) -> State {
         pile,
         player,
         cpu_players,
-        turn: PlayerTurn,
+        turn: PlayerTurn(None),
         summary: String::new(),
         ui_context: UIContext::new(),
     }
@@ -206,7 +209,31 @@ pub fn game_update_and_render(platform: &Platform,
     let mut should_draw_hand = true;
 
     match state.turn.clone() {
-        PlayerTurn => {
+        PlayerTurn(possible_knocker) => {
+            if let Some(knocker) = possible_knocker {
+                println!("Some(knocker)");
+                if knocker == Player {
+                    state.turn = Resolution(None);
+                }
+            } else {
+                let knock_spec = ButtonSpec {
+                    x: 0,
+                    y: 3,
+                    w: 11,
+                    h: 3,
+                    text: "Knock".to_string(),
+                    id: 4,
+                };
+
+                if do_button(platform,
+                             &mut state.ui_context,
+                             &knock_spec,
+                             left_mouse_pressed,
+                             left_mouse_released) {
+                    state.turn = CpuTurn(Some(Player));
+                }
+            }
+
             if state.deck.len() > 0 {
                 if do_card_back_button(platform,
                                        &mut state.ui_context,
@@ -252,12 +279,12 @@ pub fn game_update_and_render(platform: &Platform,
                     state.turn = if state.player.is_31() {
                         Resolution(Some(Player))
                     } else {
-                        CpuTurn
+                        CpuTurn(None)
                     };
                 }
                 Some(SelectedCard) => {
                     state.pile.push(selected_card);
-                    state.turn = CpuTurn;
+                    state.turn = CpuTurn(None);
                 }
                 None => {}
             }
@@ -270,10 +297,10 @@ pub fn game_update_and_render(platform: &Platform,
                 draw_card_back(platform, DECK_X, DECK_Y);
             }
         }
-        CpuTurn => {
-            state.turn = CpuSummary(cpu_turns(state));
+        CpuTurn(possible_knocker) => {
+            state.turn = CpuSummary(cpu_turns(state, possible_knocker.map(Knocker)));
         }
-        CpuSummary(possible_winner) => {
+        CpuSummary(possible_knocker_or_winner) => {
             (platform.print_xy)(12, 2, &state.summary);
 
             let ok_spec = ButtonSpec {
@@ -290,11 +317,13 @@ pub fn game_update_and_render(platform: &Platform,
                          &ok_spec,
                          left_mouse_pressed,
                          left_mouse_released) {
-                state.turn = if possible_winner.is_some() {
-                    Resolution(possible_winner)
-                } else {
-                    PlayerTurn
-                };
+
+                state.turn = match possible_knocker_or_winner {
+                    Some(Winner(winner)) => Resolution(Some(winner)),
+                    Some(Knocker(Player)) => Resolution(None),
+                    Some(Knocker(p)) => PlayerTurn(Some(p)),
+                    _ => PlayerTurn(None),
+                }
             }
         }
         Resolution(possible_winner) => {
@@ -363,25 +392,53 @@ pub fn game_update_and_render(platform: &Platform,
     false
 }
 
-fn cpu_turns(state: &mut State) -> Option<Participant> {
+fn cpu_turns(state: &mut State,
+             possible_knocker_or_winner: Option<KnockerOrWinner>)
+             -> Option<KnockerOrWinner> {
     state.summary.clear();
 
-    for i in 0..state.cpu_players.len() {
-        let possible_winner = take_cpu_turn(state, i);
+    let mut possible_result = possible_knocker_or_winner.clone();
 
-        if possible_winner.is_some() {
-            return possible_winner;
+    for i in 0..state.cpu_players.len() {
+        possible_result = take_cpu_turn(state, i, possible_result);
+
+        match possible_result {
+            Some(Knocker(ref knocker)) => {
+                if knocker == &Cpu(i) {
+                    break;
+                }
+            }
+            Some(_) => {
+                break;
+            }
+            None => {}
+        }
+
+    }
+
+    possible_result
+}
+
+fn take_cpu_turn(state: &mut State,
+                 cpu_index: usize,
+                 possible_knocker_or_winner: Option<KnockerOrWinner>)
+                 -> Option<KnockerOrWinner> {
+    if let Some(Knocker(ref p)) = possible_knocker_or_winner {
+        if p == &Cpu(cpu_index) {
+            return Some(Knocker(p.clone()));
         }
     }
 
-    None
-}
-
-fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
     if let Some(cpu_hand) = state.cpu_players.get_mut(cpu_index) {
+        if let Some(Knocker(_)) = possible_knocker_or_winner {
+            //don't allow knocking
+        } else {
 
-
-
+            if cpu_hand.score() > Simple(25) {
+                state.summary += s!("Cpu {} knocked!\n", cpu_index);
+                return Some(Knocker(Cpu(cpu_index)));
+            }
+        }
 
         let pile_card_is_worth_taking = state
             .pile
@@ -418,11 +475,11 @@ fn take_cpu_turn(state: &mut State, cpu_index: usize) -> Option<Participant> {
         state.pile.push(returned_card);
 
         if cpu_hand.is_31() {
-            return Some(Cpu(cpu_index));
+            return Some(Winner(Cpu(cpu_index)));
         }
     }
 
-    None
+    possible_knocker_or_winner
 }
 
 fn cpu_select_returned_card(hand: &HandEnum, card: &Card) -> ReturnSelection {
