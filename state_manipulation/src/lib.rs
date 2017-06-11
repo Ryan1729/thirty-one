@@ -113,6 +113,7 @@ fn make_state(size: Size, title_screen: bool, mut rng: StdRng) -> State {
         player,
         cpu_players,
         turn: PlayerTurn(None),
+        turn_count: 0,
         summary: String::new(),
         ui_context: UIContext::new(),
     }
@@ -295,12 +296,14 @@ pub fn game_update_and_render(platform: &Platform,
             if state.deck.len() > 0 {
                 draw_card_back(platform, DECK_X, DECK_Y);
             }
+
+            state.turn_count += 1;
         }
         CpuTurn(possible_knocker) => {
             let labeled = possible_knocker.clone().map(Knocker);
 
             let turn_result = cpu_turns(state, labeled.clone());
-            println!("{:?}, {:?}", labeled, turn_result);
+
             state.turn = if possible_knocker.is_some() && labeled == turn_result {
                 Resolution(None)
             } else {
@@ -336,12 +339,16 @@ pub fn game_update_and_render(platform: &Platform,
         Resolution(possible_winner) => {
             let mut y = 2;
 
-            (platform.print_xy)(20, y, s!("You have {}", state.player));
+            (platform.print_xy)(15,
+                                y,
+                                s!("You have {} ({})", state.player, state.player.score()));
 
             y += 2;
 
             for (i, cpu_hand) in state.cpu_players.iter().enumerate() {
-                (platform.print_xy)(20, y, s!("{} has {}", Cpu(i), cpu_hand));
+                (platform.print_xy)(15,
+                                    y,
+                                    s!("{} has {}, ({})", Cpu(i), cpu_hand, cpu_hand.score()));
 
                 y += 2;
             }
@@ -420,7 +427,6 @@ fn cpu_turns(state: &mut State,
             }
             None => {}
         }
-
     }
 
     possible_result
@@ -430,6 +436,8 @@ fn take_cpu_turn(state: &mut State,
                  cpu_index: usize,
                  possible_knocker_or_winner: Option<KnockerOrWinner>)
                  -> Option<KnockerOrWinner> {
+    state.turn_count += 1;
+
     if let Some(Knocker(ref p)) = possible_knocker_or_winner {
         if p == &Cpu(cpu_index) {
             return Some(Knocker(p.clone()));
@@ -440,11 +448,13 @@ fn take_cpu_turn(state: &mut State,
         if let Some(Knocker(_)) = possible_knocker_or_winner {
             //don't allow knocking
         } else {
-            if cpu_hand.score() > Simple(25) {
+            if cpu_hand.score() >= Simple(25) ||
+               (state.turn_count <= 5 && cpu_hand.score() >= Simple(19)) {
                 state.summary += s!("Cpu {} knocked!\n", cpu_index);
                 return Some(Knocker(Cpu(cpu_index)));
             }
         }
+
 
         let pile_card_is_worth_taking = state
             .pile

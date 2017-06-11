@@ -32,6 +32,7 @@ pub struct State {
     pub player: HandEnum,
     pub cpu_players: Vec<HandEnum>,
     pub turn: Turn,
+    pub turn_count: u32,
     pub summary: String,
     pub ui_context: UIContext,
 }
@@ -200,6 +201,15 @@ pub enum Score {
     Simple(u8),
 }
 use Score::*;
+
+impl fmt::Display for Score {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} points", match *self {
+            ThirtyAndAHalf => "30½".to_string(),
+            Simple(x) => x.to_string(),
+        })
+    }
+}
 
 impl Ord for Score {
     fn cmp(&self, other: &Score) -> Ordering {
