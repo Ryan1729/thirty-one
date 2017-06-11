@@ -1,6 +1,24 @@
-This is a template to make it easy to get started with live code reloading using BearLibTerminal.
+This is a single player version of a card game called 31.
 
-Currently the live reloading is only tested/working on Linux, but the resulting program can be compiled in release mode for Linux and Windows. MacOS currently is untested.
+There are several slightly different versions of this game so here's the rules this version is based on:
+
+### Setup
+Shuffle the deck, deal three cards to each player, then take the top card of the deck and place it face-up next to the deck, beginning what we will refer to as "the pile".
+
+### Play
+Players take turns choosing either the top card of the pile or the top card of the deck and adding it to their hand. The player then chooses a card to place back on the pile, attempting to create the highest scoring hand. If a player creates a hand worth 31 points they instantly win. See the hand Scoring Section below.
+
+Instead of the above players may alternatively announce that they believe they have a good enough hand to beat everyone else. This is referred to as "knocking". The other players each get one more turn to try and get a better hand, then all hands are revealed and the player(s) with the best hand(s) win.
+
+### Hand Scoring
+Aces count fo 11 points, face cards all count for 10 points and all other cards count for their value. A hand is worth a number of points equal to the count of the cards in one suit in their hand.   
+
+If a hand consists of three cards with the same value (say three 4's), then that hand is worth 30½ points, (despite the cards not all being the same suit).
+
+### Examples
+  9♠, A♥, 8♥ scores 19.
+  ♦7, 7♠, 7♥ scores 30½.
+	A♣, 10♣, K♣ scores 31 and wins immeadiately
 
 ## Installing required lib on Linux
 
