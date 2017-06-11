@@ -210,8 +210,7 @@ pub fn game_update_and_render(platform: &Platform,
 
     match state.turn.clone() {
         PlayerTurn(possible_knocker) => {
-            if let Some(knocker) = possible_knocker {
-                println!("Some(knocker)");
+            if let Some(knocker) = possible_knocker.clone() {
                 if knocker == Player {
                     state.turn = Resolution(None);
                 }
@@ -243,7 +242,7 @@ pub fn game_update_and_render(platform: &Platform,
                                        left_mouse_released,
                                        88) {
                     let card = deal(state);
-                    state.turn = PlayerSelected(card);
+                    state.turn = PlayerSelected(card, possible_knocker.clone());
                 }
             }
 
@@ -261,10 +260,10 @@ pub fn game_update_and_render(platform: &Platform,
             };
 
             if selected_top_card {
-                state.turn = PlayerSelected(state.pile.pop().unwrap());
+                state.turn = PlayerSelected(state.pile.pop().unwrap(), possible_knocker.clone());
             }
         }
-        PlayerSelected(selected_card) => {
+        PlayerSelected(selected_card, possible_knocker) => {
             let selection = select_returned_card(platform,
                                                  state,
                                                  &selected_card,
@@ -279,12 +278,12 @@ pub fn game_update_and_render(platform: &Platform,
                     state.turn = if state.player.is_31() {
                         Resolution(Some(Player))
                     } else {
-                        CpuTurn(None)
+                        CpuTurn(possible_knocker)
                     };
                 }
                 Some(SelectedCard) => {
                     state.pile.push(selected_card);
-                    state.turn = CpuTurn(None);
+                    state.turn = CpuTurn(possible_knocker);
                 }
                 None => {}
             }
@@ -298,7 +297,15 @@ pub fn game_update_and_render(platform: &Platform,
             }
         }
         CpuTurn(possible_knocker) => {
-            state.turn = CpuSummary(cpu_turns(state, possible_knocker.map(Knocker)));
+            let labeled = possible_knocker.clone().map(Knocker);
+
+            let turn_result = cpu_turns(state, labeled.clone());
+            println!("{:?}, {:?}", labeled, turn_result);
+            state.turn = if possible_knocker.is_some() && labeled == turn_result {
+                Resolution(None)
+            } else {
+                CpuSummary(turn_result)
+            }
         }
         CpuSummary(possible_knocker_or_winner) => {
             (platform.print_xy)(12, 2, &state.summary);
@@ -433,7 +440,6 @@ fn take_cpu_turn(state: &mut State,
         if let Some(Knocker(_)) = possible_knocker_or_winner {
             //don't allow knocking
         } else {
-
             if cpu_hand.score() > Simple(25) {
                 state.summary += s!("Cpu {} knocked!\n", cpu_index);
                 return Some(Knocker(Cpu(cpu_index)));
@@ -498,11 +504,11 @@ fn cpu_select_returned_card(hand: &HandEnum, card: &Card) -> ReturnSelection {
                 if max == keep {
                     SelectedCard
                 } else if max == first {
-                    FromHand(ThirdCard)
+                    FromHand(FirstCard)
                 } else if max == second {
                     FromHand(SecondCard)
                 } else {
-                    FromHand(FirstCard)
+                    FromHand(ThirdCard)
                 }
             } else {
                 FromHand(FirstCard)

@@ -39,13 +39,13 @@ pub struct State {
 #[derive(Clone)]
 pub enum Turn {
     PlayerTurn(Option<Participant>), //possible knocker
-    PlayerSelected(Card),
+    PlayerSelected(Card, Option<Participant>), //possible knocker
     CpuTurn(Option<Participant>), //possible knocker
     CpuSummary(Option<KnockerOrWinner>),
     Resolution(Option<Participant>), //possible Winner
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Participant {
     Player,
     Cpu(usize),
@@ -194,7 +194,7 @@ pub fn score_cards(c1: &Card, c2: &Card, c3: &Card) -> Score {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Hash)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum Score {
     ThirtyAndAHalf,
     Simple(u8),
@@ -421,7 +421,7 @@ impl Value {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum KnockerOrWinner {
     Knocker(Participant),
     Winner(Participant),
